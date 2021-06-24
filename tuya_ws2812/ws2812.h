@@ -2,7 +2,7 @@
  * @Author: hequan 
  * @Date: 2021-06-24 18:42:37 
  * @Last Modified by: hequan
- * @Last Modified time: 2021-06-24 18:43:38
+ * @Last Modified time: 2021-06-24 23:33:03
  */
 #ifndef WS2812_H
 #define WS2812_H
@@ -17,7 +17,7 @@ enum wsMode
     JUMP,
     BREATHE,
     BLINK,
-    FLOW,
+    FLOW = 10,
     RAINBORW
 };
 
@@ -25,6 +25,7 @@ typedef struct
 {
     uint32_t color[15];
     uint8_t color_len;
+    uint8_t change_time;
 } Color_T;
 
 typedef struct

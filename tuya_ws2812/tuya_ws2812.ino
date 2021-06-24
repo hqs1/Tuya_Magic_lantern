@@ -1,8 +1,8 @@
 /*
  * @Author: hequan 
  * @Date: 2021-06-24 18:42:31 
- * @Last Modified by:   hequan 
- * @Last Modified time: 2021-06-24 18:42:31 
+ * @Last Modified by: hequan
+ * @Last Modified time: 2021-06-24 23:46:38
  */
 #include <TuyaWifi.h>
 #include "dp_config.h"
@@ -16,13 +16,6 @@ SoftwareSerial debugSerial(10, 11); // RX, TX
 #endif
 
 TuyaWifi my_device;
-
-unsigned char dp_bool_value = 0;
-long dp_value_value = 0;
-unsigned char dp_enum_value = 0;
-unsigned char dp_string_value[8] = {"Hi,Tuya"};
-unsigned char dp_raw_value[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef};
-int dp_fault_value = 0x01;
 
 unsigned char dp_array[][2] = {
     {DPID_SWITCH_LED, DP_TYPE_BOOL},
@@ -65,6 +58,8 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
 {
 
     uint16_t val, hue, sat;
+    uint8_t odd_value, gop_num, show_num;
+
     switch (dpid)
     {
     case DPID_SWITCH_LED:
@@ -74,6 +69,43 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
         {
             pixels.clear();
             pixels.show();
+        }
+        else //恢复静态下灯状态
+        {
+            if (ws2812_data.ws_mode == STATIC) //静态直接显示
+            {
+                if (color_data.color_len == 1)
+                {
+                    pixels.fill(color_data.color[0], 0, ws2812_data.led_len);
+                }
+                else
+                {
+                    odd_value = ws2812_data.led_len % color_data.color_len;
+                    if (odd_value == ws2812_data.led_len)
+                    {
+                        for (uint8_t i = 0; i < ws2812_data.led_len; i++)
+                        {
+                            pixels.setPixelColor(i, color_data.color[i]);
+                        }
+                    }
+                    else
+                    {
+                        if (odd_value != 0)
+                        {
+                            show_num = ws2812_data.led_len - odd_value;
+                        }
+                        gop_num = show_num / color_data.color_len;
+                        for (int i = 0; i < color_data.color_len; i++)
+                        {
+                            for (int j = 0; j < gop_num; j++)
+                            {
+                                pixels.setPixelColor(i * gop_num + j, color_data.color[i]);
+                            }
+                        }
+                    }
+                }
+                pixels.show();
+            }
         }
         break;
     // case DPID_WORK_MODE:
@@ -87,6 +119,7 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
     case DPID_DREAMLIGHT_SCENE_MODE:
         val = value[8] * 2.55;
         color_data.color_len = (length - 9) / 3;
+        color_data.change_time = value[4] / 3;
         ws2812_data.ws_mode = (wsMode)value[2];
 
         for (uint8_t i = 0; i < color_data.color_len; i++)
@@ -116,7 +149,6 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
         debugSerial.print("color_len:");
         debugSerial.println(color_data.color_len);
 #endif
-        uint8_t odd_value, gop_num, show_num;
         if (ws2812_data.ws_mode == STATIC) //静态直接显示
         {
             if (color_data.color_len == 1)
@@ -153,8 +185,15 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
         }
         break;
     case DPID_LIGHTPIXEL_NUMBER_SET:
-        pixels.updateLength(value[0]);
-        ws2812_data.led_len = value[0];
+#ifdef MCU_DEBUG
+        debugSerial.print("set_linght_len:");
+        debugSerial.println(value[3]);
+#endif
+        pixels.clear();
+        pixels.show();
+        ws2812_data.led_len = value[3];
+        pixels.updateLength(ws2812_data.led_len);
+
         break;
     default:
         break;
