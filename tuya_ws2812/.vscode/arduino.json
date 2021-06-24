@@ -1,0 +1,5 @@
+{
+    "board": "arduino:avr:uno",
+    "port": "COM33",
+    "sketch": "tuya_ws2812.ino"
+}
