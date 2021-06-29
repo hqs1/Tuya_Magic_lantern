@@ -2,7 +2,7 @@
  * @Author: hequan 
  * @Date: 2021-06-24 18:42:43 
  * @Last Modified by: hequan
- * @Last Modified time: 2021-06-24 23:49:03
+ * @Last Modified time: 2021-06-24 23:52:53
  */
 #include "ws2812.h"
 #ifdef __AVR__
@@ -224,4 +224,79 @@ static void flow(Color_T color, ws2812_T data)
     }
     if (color_count >= color.color_len)
         color_count = 0;
+}
+
+void ws2812_Static()
+{
+    uint8_t odd_value, gop_num, show_num;
+
+    if (color_data.color_len == 1)
+    {
+        pixels.fill(color_data.color[0], 0, ws2812_data.led_len);
+    }
+    else
+    {
+        odd_value = ws2812_data.led_len % color_data.color_len;
+        if (odd_value == ws2812_data.led_len)
+        {
+            for (uint8_t i = 0; i < ws2812_data.led_len; i++)
+            {
+                pixels.setPixelColor(i, color_data.color[i]);
+            }
+        }
+        else
+        {
+            if (odd_value != 0)
+            {
+                show_num = ws2812_data.led_len - odd_value;
+            }
+            gop_num = show_num / color_data.color_len;
+            for (int i = 0; i < color_data.color_len; i++)
+            {
+                for (int j = 0; j < gop_num; j++)
+                {
+                    pixels.setPixelColor(i * gop_num + j, color_data.color[i]);
+                }
+            }
+        }
+    }
+    pixels.show();
+}
+
+
+
+/**
+ * @brief  str to short
+ * @param[in] {a} Single Point
+ * @param[in] {b} Single Point
+ * @param[in] {c} Single Point
+ * @param[in] {d} Single Point
+ * @return Integrated value
+ * @note   Null
+ */
+u32 __str2short(u32 a, u32 b, u32 c, u32 d)
+{
+  return (a << 12) | (b << 8) | (c << 4) | (d & 0xf);
+}
+
+/**
+  * @brief ASCALL to Hex
+  * @param[in] {asccode} 当前ASCALL值
+  * @return Corresponding value
+  * @retval None
+  */
+u8 __asc2hex(u8 asccode)
+{
+  u8 ret;
+
+  if ('0' <= asccode && asccode <= '9')
+    ret = asccode - '0';
+  else if ('a' <= asccode && asccode <= 'f')
+    ret = asccode - 'a' + 10;
+  else if ('A' <= asccode && asccode <= 'F')
+    ret = asccode - 'A' + 10;
+  else
+    ret = 0;
+
+  return ret;
 }

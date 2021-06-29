@@ -38,7 +38,9 @@ typedef struct
 
 void ws2812_Init();
 void ws2812_Server();
-uint8_t asc2hex(uint8_t asccode);
+void ws2812_Static();
+u32 __str2short(u32 a, u32 b, u32 c, u32 d);
+u8 __asc2hex(u8 asccode);
 
 extern ws2812_T ws2812_data;
 extern Adafruit_NeoPixel pixels;

@@ -8,7 +8,7 @@
 #include "dp_config.h"
 #include "ws2812.h"
 
-// #define MCU_DEBUG
+//#define MCU_DEBUG
 
 #ifdef MCU_DEBUG
 #include <SoftwareSerial.h>
@@ -16,6 +16,8 @@ SoftwareSerial debugSerial(10, 11); // RX, TX
 #endif
 
 TuyaWifi my_device;
+int count_down_value = 0;
+unsigned long time_count;
 
 unsigned char dp_array[][2] = {
     {DPID_SWITCH_LED, DP_TYPE_BOOL},
@@ -33,7 +35,6 @@ void setup()
     debugSerial.begin(9600);
 #endif
     ws2812_Init();
-    pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(9600);
     my_device.init(pid, mcu_ver);
     my_device.set_dp_cmd_total(dp_array, 6);
@@ -45,6 +46,18 @@ void loop()
 {
     ws2812_Server();
     my_device.uart_service();
+    //倒计时服务
+    if (count_down_value != 0 && (millis() - time_count) >= 1000)
+    {
+        count_down_value--;
+        time_count = millis();
+        if (count_down_value == 0)
+        {
+            ws2812_data.state = !ws2812_data.state;
+            dp_process(DPID_SWITCH_LED, &ws2812_data.state, 1);
+        }
+        my_device.mcu_dp_update(DPID_COUNTDOWN, count_down_value, 1);
+    }
 }
 
 /**
@@ -57,13 +70,12 @@ void loop()
 unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsigned short length)
 {
 
-    uint16_t val, hue, sat;
-    uint8_t odd_value, gop_num, show_num;
+    uint32_t val, hue, sat;
 
     switch (dpid)
     {
     case DPID_SWITCH_LED:
-        digitalWrite(LED_BUILTIN, value[0]);
+        count_down_value = 0;
         ws2812_data.state = value[0];
         if (ws2812_data.state == 0)
         {
@@ -73,48 +85,25 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
         else //恢复静态下灯状态
         {
             if (ws2812_data.ws_mode == STATIC) //静态直接显示
-            {
-                if (color_data.color_len == 1)
-                {
-                    pixels.fill(color_data.color[0], 0, ws2812_data.led_len);
-                }
-                else
-                {
-                    odd_value = ws2812_data.led_len % color_data.color_len;
-                    if (odd_value == ws2812_data.led_len)
-                    {
-                        for (uint8_t i = 0; i < ws2812_data.led_len; i++)
-                        {
-                            pixels.setPixelColor(i, color_data.color[i]);
-                        }
-                    }
-                    else
-                    {
-                        if (odd_value != 0)
-                        {
-                            show_num = ws2812_data.led_len - odd_value;
-                        }
-                        gop_num = show_num / color_data.color_len;
-                        for (int i = 0; i < color_data.color_len; i++)
-                        {
-                            for (int j = 0; j < gop_num; j++)
-                            {
-                                pixels.setPixelColor(i * gop_num + j, color_data.color[i]);
-                            }
-                        }
-                    }
-                }
-                pixels.show();
-            }
+                ws2812_Static();
         }
         break;
     // case DPID_WORK_MODE:
     //     break;
     case DPID_COUNTDOWN:
+        count_down_value = my_device.mcu_get_dp_download_data(dpid, value, length);
+        time_count = millis();
         break;
     case DPID_MUSIC_DATA:
-        break;
     case DPID_CONTROL_DATA:
+        hue = __str2short(__asc2hex(value[1]), __asc2hex(value[2]), __asc2hex(value[3]), __asc2hex(value[4]));
+        sat = __str2short(__asc2hex(value[5]), __asc2hex(value[6]), __asc2hex(value[7]), __asc2hex(value[8]));
+        val = __str2short(__asc2hex(value[9]), __asc2hex(value[10]), __asc2hex(value[11]), __asc2hex(value[12]));
+        ws2812_data.ws_mode = STATIC;
+        color_data.color_len = 1;
+        color_data.color[0] = pixels.gamma32(pixels.ColorHSV(hue * 182, sat / 4, val / 4));
+        if (ws2812_data.ws_mode == STATIC) //静态直接显示
+            ws2812_Static();
         break;
     case DPID_DREAMLIGHT_SCENE_MODE:
         val = value[8] * 2.55;
@@ -150,39 +139,7 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
         debugSerial.println(color_data.color_len);
 #endif
         if (ws2812_data.ws_mode == STATIC) //静态直接显示
-        {
-            if (color_data.color_len == 1)
-            {
-                pixels.fill(color_data.color[0], 0, ws2812_data.led_len);
-            }
-            else
-            {
-                odd_value = ws2812_data.led_len % color_data.color_len;
-                if (odd_value == ws2812_data.led_len)
-                {
-                    for (uint8_t i = 0; i < ws2812_data.led_len; i++)
-                    {
-                        pixels.setPixelColor(i, color_data.color[i]);
-                    }
-                }
-                else
-                {
-                    if (odd_value != 0)
-                    {
-                        show_num = ws2812_data.led_len - odd_value;
-                    }
-                    gop_num = show_num / color_data.color_len;
-                    for (int i = 0; i < color_data.color_len; i++)
-                    {
-                        for (int j = 0; j < gop_num; j++)
-                        {
-                            pixels.setPixelColor(i * gop_num + j, color_data.color[i]);
-                        }
-                    }
-                }
-            }
-            pixels.show();
-        }
+            ws2812_Static();
         break;
     case DPID_LIGHTPIXEL_NUMBER_SET:
 #ifdef MCU_DEBUG
@@ -193,7 +150,6 @@ unsigned char dp_process(unsigned char dpid, const unsigned char value[], unsign
         pixels.show();
         ws2812_data.led_len = value[3];
         pixels.updateLength(ws2812_data.led_len);
-
         break;
     default:
         break;
@@ -211,4 +167,5 @@ void dp_update_all(void)
 {
     my_device.mcu_dp_update(DPID_SWITCH_LED, ws2812_data.state, 1);
     my_device.mcu_dp_update(DPID_LIGHTPIXEL_NUMBER_SET, ws2812_data.led_len, 1);
+    my_device.mcu_dp_update(DPID_COUNTDOWN, count_down_value, 1);
 }
